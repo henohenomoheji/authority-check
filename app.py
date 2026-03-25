@@ -1,3 +1,7 @@
+from src.config import load_environment
+
+load_environment()
+
 import streamlit as st
 
 st.set_page_config(page_title="Page Access Test", layout="wide")

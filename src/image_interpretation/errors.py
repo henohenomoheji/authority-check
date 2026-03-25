@@ -26,5 +26,9 @@ class ModelTimeoutError(ImageInterpretationError):
     """Raised when model API times out."""
 
 
+class ModelConnectionError(ImageInterpretationError):
+    """Raised when model API cannot be reached due to network or endpoint issues."""
+
+
 class ModelUnavailableError(ImageInterpretationError):
     """Raised when model API is unavailable or returns an error."""

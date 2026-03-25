@@ -7,6 +7,7 @@ from src.image_interpretation import (
     InterpretationRequest,
     InvalidImageFormatError,
     InvalidPromptError,
+    ModelConnectionError,
     MissingConfigurationError,
     ModelTimeoutError,
     ModelUnavailableError,
@@ -62,7 +63,9 @@ if st.button("解釈実行", type="primary"):
         st.error(str(exc))
     except MissingConfigurationError as exc:
         st.error(f"設定エラー: {exc}")
+    except ModelConnectionError as exc:
+        st.error(f"接続エラー: {exc}")
     except ModelTimeoutError:
         st.error("時間をおいて再実行してください。")
-    except ModelUnavailableError:
-        st.error("現在利用できません。")
+    except ModelUnavailableError as exc:
+        st.error(f"モデル利用エラー: {exc}")

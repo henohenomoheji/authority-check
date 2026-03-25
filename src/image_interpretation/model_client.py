@@ -2,23 +2,36 @@ import base64
 import json
 import os
 import socket
+import ssl
 from urllib import error, request
 
-from .errors import MissingConfigurationError, ModelTimeoutError, ModelUnavailableError
+from src.config import load_environment
+
+from .errors import (
+    MissingConfigurationError,
+    ModelConnectionError,
+    ModelTimeoutError,
+    ModelUnavailableError,
+)
 
 DEFAULT_TIMEOUT_SEC = 10
-
-
 class VisionModelClient:
     def __init__(self) -> None:
-        self.api_key = os.getenv("VISION_API_KEY")
-        self.model_name = os.getenv("VISION_MODEL_NAME")
+        load_environment()
+        self.api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        self.endpoint = (os.getenv("AZURE_OPENAI_ENDPOINT") or "").rstrip("/")
+        self.model_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
         self.timeout_sec = int(os.getenv("VISION_TIMEOUT_SEC", str(DEFAULT_TIMEOUT_SEC)))
 
         if not self.api_key:
-            raise MissingConfigurationError("VISION_API_KEY が設定されていません。")
+            raise MissingConfigurationError("AZURE_OPENAI_API_KEY が設定されていません。")
+        if not self.endpoint:
+            raise MissingConfigurationError("AZURE_OPENAI_ENDPOINT が設定されていません。")
         if not self.model_name:
-            raise MissingConfigurationError("VISION_MODEL_NAME が設定されていません。")
+            raise MissingConfigurationError("AZURE_OPENAI_DEPLOYMENT_NAME が設定されていません。")
+
+    def _build_request_url(self) -> str:
+        return f"{self.endpoint}/openai/v1/responses"
 
     def generate_description(self, image_bytes: bytes, mime_type: str, prompt: str) -> str:
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -39,10 +52,10 @@ class VisionModelClient:
         }
 
         req = request.Request(
-            url="https://api.openai.com/v1/responses",
+            url=self._build_request_url(),
             data=json.dumps(payload).encode("utf-8"),
             headers={
-                "Authorization": f"Bearer {self.api_key}",
+                "api-key": self.api_key,
                 "Content-Type": "application/json",
             },
             method="POST",
@@ -54,8 +67,26 @@ class VisionModelClient:
         except error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="ignore")
             raise ModelUnavailableError(f"モデルAPIエラー: status={exc.code}, detail={detail}") from exc
-        except (error.URLError, TimeoutError, socket.timeout) as exc:
+        except (TimeoutError, socket.timeout) as exc:
             raise ModelTimeoutError("モデルAPI呼び出しがタイムアウトしました。") from exc
+        except error.URLError as exc:
+            reason = exc.reason
+            if isinstance(reason, socket.timeout):
+                raise ModelTimeoutError("モデルAPI呼び出しがタイムアウトしました。") from exc
+
+            if isinstance(reason, ssl.SSLError):
+                raise ModelConnectionError(
+                    "Azure OpenAI への SSL 接続に失敗しました。エンドポイント設定を確認してください。"
+                ) from exc
+
+            if isinstance(reason, socket.gaierror):
+                raise ModelConnectionError(
+                    "Azure OpenAI のホスト名を解決できませんでした。エンドポイント設定を確認してください。"
+                ) from exc
+
+            raise ModelConnectionError(
+                f"Azure OpenAI に接続できませんでした: {reason}"
+            ) from exc
 
         parsed = json.loads(body)
         output_text = parsed.get("output_text")
