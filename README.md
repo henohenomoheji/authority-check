@@ -63,6 +63,15 @@ streamlit run app.py
 
 ---
 
+
+## Azure デプロイ（azd）
+
+Azure へ `azd` で **組み込み Python ランタイム（App Service）** デプロイする場合は、以下ドキュメントを参照してください。
+
+- [Azure デプロイガイド（azd 利用）](docs/Azure_azd_デプロイガイド.md)
+
+---
+
 ## よく使うコマンド
 
 ```bash
